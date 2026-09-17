@@ -4,7 +4,7 @@ use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{
     Resource,
     trace::{Sampler, SdkTracerProvider},
-}; // <-- Removed Tokio, BatchSpanProcessor
+};
 use std::{collections::HashMap, env};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -12,13 +12,10 @@ mod routes;
 
 #[tokio::main]
 async fn main() {
-    match dotenvy::dotenv() {
-        Ok(path) => println!("Loaded .env from {:?}", path),
-        Err(e) => println!("dotenvy error: {}", e),
-    }
-
+    let _ = dotenvy::dotenv();
     let endpoint = env::var("OTEL_ENDPOINT").expect("OTEL_ENDPOINT must be set");
     let auth_value = env::var("OTEL_AUTH_HEADER").expect("OTEL_AUTH_HEADER must be set");
+    let service_name = env::var("SERVICE_NAME").expect("Must set service name");
 
     let mut headers = HashMap::new();
     headers.insert("Authorization".to_string(), auth_value);
@@ -31,7 +28,7 @@ async fn main() {
         .expect("Failed to build exporter");
 
     let resource = Resource::builder()
-        .with_attribute(KeyValue::new("service.name", "rust-api"))
+        .with_attribute(KeyValue::new("service.name", service_name))
         .build();
 
     // Because 'rt-tokio' is in Cargo.toml, this now natively uses Tokio
