@@ -9,6 +9,7 @@ use std::{collections::HashMap, env};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod routes;
+mod test;
 
 #[tokio::main]
 async fn main() {
