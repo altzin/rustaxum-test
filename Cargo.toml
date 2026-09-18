@@ -22,3 +22,4 @@ tower-http = {version = "0.7.1", features = [
 ]}
 utoipa = { version = "5.5.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+sqlx = "0.9.0"
