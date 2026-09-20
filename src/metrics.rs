@@ -1,11 +1,14 @@
 use opentelemetry::metrics::{Counter, Histogram};
 use opentelemetry::{KeyValue, global};
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{
     Resource,
     metrics::{PeriodicReader, SdkMeterProvider},
 };
 use std::collections::HashMap;
 use std::time::Duration;
+
+use crate::config::OtlpConfig;
 
 #[derive(Clone)]
 pub struct AppMetrics {
@@ -31,10 +34,8 @@ impl AppMetrics {
         }
     }
 }
-
 pub fn init_metrics(
-    endpoint: Option<String>,
-    auth_header: Option<String>,
+    config: Option<&OtlpConfig>,
     service_name: &str,
 ) -> Result<SdkMeterProvider, Box<dyn std::error::Error>> {
     let resource = Resource::builder()
@@ -42,16 +43,15 @@ pub fn init_metrics(
         .build();
 
     let mut builder = SdkMeterProvider::builder().with_resource(resource);
-    let ep = endpoint.as_deref();
-    let auth = auth_header.as_deref();
 
-    if let (Some(ep), Some(auth)) = (endpoint, auth_header) {
+    if let Some(cfg) = config {
         let mut headers = HashMap::new();
-        headers.insert("Authorization".to_string(), auth.to_string());
+        headers.insert("Authorization".to_string(), cfg.auth_header.clone());
 
+        // Use the dynamically generated base URL
         let exporter = opentelemetry_otlp::MetricExporter::builder()
             .with_http()
-            .with_endpoint(ep)
+            .with_endpoint(cfg.base_url() + "/v1/metrics")
             .with_headers(headers)
             .build()?;
 
@@ -60,7 +60,12 @@ pub fn init_metrics(
             .build();
 
         builder = builder.with_reader(reader);
-        tracing::info!("Metrics: remote OpenObserve exporter active");
+        println!(
+            "Metrics: remote OpenObserve exporter active at {}",
+            cfg.base_url()
+        );
+    } else {
+        println!("Metrics: running in local mode (no remote exporter)");
     }
 
     let provider = builder.build();

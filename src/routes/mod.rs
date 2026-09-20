@@ -1,6 +1,7 @@
 use axum::{Router, routing::get};
-use sqlx::PgPool;
 use utoipa::OpenApi;
+
+use crate::state::AppState;
 
 mod health;
 mod items;
@@ -17,7 +18,7 @@ mod items;
 )]
 pub struct ApiDoc;
 
-pub fn create_router() -> Router<PgPool> {
+pub fn create_router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(health::health_handler))
         .route("/items", get(items::items_handler))
