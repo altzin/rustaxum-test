@@ -1,4 +1,4 @@
-use tracing::{info, instrument};
+use axum::http::StatusCode;
 
 #[utoipa::path(
     get,
@@ -8,8 +8,6 @@ use tracing::{info, instrument};
     ),
     tag = "Health"
 )]
-#[instrument(name = "GET /healthz")]
-pub async fn health_handler() -> &'static str {
-    info!("Health check was called!");
-    "OK"
+pub async fn health_handler() -> StatusCode {
+    StatusCode::OK
 }

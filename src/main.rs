@@ -1,73 +1,44 @@
 // src/main.rs
 use axum::Router;
-use opentelemetry::global;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
 use tracing::{error, info};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 mod config;
-mod metrics;
 mod middleware;
 mod routes;
 mod state;
 mod telemetry;
 
+pub mod error;
+
 use middleware::RouterExt;
 
-use crate::{config::OtlpConfig, state::AppState};
+use crate::{config::AppConfig, state::AppState, telemetry::metrics};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = dotenvy::dotenv();
 
-    // let endpoint = env::var("OTEL_ENDPOINT").expect("OTEL_ENDPOINT must be set");
-    // let auth_value = env::var("OTEL_AUTH_HEADER").expect("OTEL_AUTH_HEADER must be set");
-    let service_name = env::var("SERVICE_NAME").expect("SERVICE_NAME must be set");
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let is_prod = env::var("APP_ENV").map(|v| v == "prod").unwrap_or(false);
-    // Only build the OtlpConfig if the required auth header is present
-    let otlp_config = env::var("OTEL_AUTH_HEADER").ok().map(|auth| OtlpConfig {
-        host: env::var("OTEL_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        org: env::var("OTEL_ORG").unwrap_or_else(|_| "default".to_string()),
-        port: env::var("OTEL_PORT")
-            .unwrap_or_else(|_| "5080".to_string())
-            .parse()
-            .unwrap_or(5080),
-        auth_header: auth,
-    });
+    let config = AppConfig::from_env();
 
-    // Pass the config by reference to both providers
-    // (You would apply the exact same signature change to telemetry::init_tracer)
-    let meter_provider = metrics::init_metrics(otlp_config.as_ref(), &service_name)?;
-    let tracer_provider = telemetry::init_tracer(otlp_config.as_ref(), &service_name, is_prod)?;
+    let (tracer_provider, meter_provider) =
+        telemetry::init_observability(config.otlp.as_ref(), &config.service_name, config.is_prod)?;
 
     let app_metrics = metrics::AppMetrics::new();
 
-    // 2. Set up logging & span bridging
-    let tracer = global::tracer(service_name.clone());
-    let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .with(telemetry_layer)
-        .init();
-
     tracing::info!(
         "Starting service '{}' in {} mode",
-        service_name,
-        if is_prod { "production" } else { "development" }
+        config.service_name,
+        if config.is_prod {
+            "production"
+        } else {
+            "development"
+        }
     );
 
-    // 3. Database & Migrations
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&db_url)
+        .connect(&config.db_url)
         .await?;
 
     sqlx::migrate!("./migrations")
@@ -81,12 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         metrics: app_metrics,
     };
 
-    let swagger =
-        SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", routes::ApiDoc::openapi());
-
     let app = Router::new()
-        .merge(routes::create_router())
-        .merge(swagger)
+        .merge(routes::create_router(config.is_prod))
         // Attach the state to the router BEFORE adding the middleware
         .with_state(state.clone())
         // Wrap all routes with our metrics tracker
@@ -104,7 +71,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    // 6. Flush remaining spans & metrics to OpenObserve on exit
     let _ = tracer_provider.shutdown();
     let _ = meter_provider.shutdown();
 
