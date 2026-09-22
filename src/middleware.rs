@@ -58,8 +58,11 @@ pub async fn track_metrics(State(state): State<AppState>, req: Request, next: Ne
     ];
 
     // Access metrics through your state
-    state.http_requests_total.add(1, &labels);
-    state.http_request_duration_seconds.record(latency, &labels);
+    state.metrics.http_requests_total.add(1, &labels);
+    state
+        .metrics
+        .http_request_duration_seconds
+        .record(latency, &labels);
 
     response
 }

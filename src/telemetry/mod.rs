@@ -1,3 +1,5 @@
+mod metrics;
+
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -87,7 +89,7 @@ fn init_metrics_provider(
         .expect("failed to create metric exporter");
 
     let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(metric_exporter)
-        .with_interval(Duration::from_secs(15))
+        .with_interval(Duration::from_secs(60)) //increase events sent to openobserve
         .build();
 
     SdkMeterProvider::builder()
@@ -153,7 +155,9 @@ pub fn init_telemetry(
     let otel_log_layer =
         opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(&logger_provider)
             // Add tower_http=info to allow middleware logs through to OpenObserve
-            .with_filter(EnvFilter::new("axum_test=info,tower_http=info,warn,error"));
+            .with_filter(EnvFilter::new(
+                "axum_test=info,tower_http=info,sqlx=warn,warn",
+            ));
 
     // 4. Initialize global tracing registry
     tracing_subscriber::registry()

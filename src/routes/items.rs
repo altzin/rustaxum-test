@@ -1,11 +1,12 @@
 use axum::{Json, extract::State, http::StatusCode};
+use opentelemetry::KeyValue;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::{Instrument, info_span}; // Bring Instrument trait into scope
 use utoipa::{IntoParams,ToSchema};
 use uuid::Uuid;
 
-use crate::error::AppError;
+use crate::{error::AppError, state::AppState};
 
 #[derive(Deserialize)]
 pub struct CreateItem {
@@ -30,11 +31,11 @@ pub struct Pagination {
 
 #[tracing::instrument(
     name = "http.post.create_item",
-    skip(pool,payload), 
+    skip(state,payload), 
     fields(item.name = %payload.name)
 )]
 pub async fn create_item(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateItem>,
 ) -> Result<(StatusCode, Json<Item>), AppError> {
 
@@ -51,13 +52,16 @@ pub async fn create_item(
         VALUES ($1, $2, $3)
         RETURNING id, name, description
         "#,
-            Uuid::new_v4(),
+        Uuid::new_v4(),
         payload.name,
         payload.description
     )
-    .fetch_one(&pool)
+    .fetch_one(&state.db)
     .instrument(info_span!("db.query.insert_item"))
-    .await?; // Automatically converted to AppError if it fails
+    .await?;
+
+    //records
+    state.metrics.items_created.add(1, &[KeyValue::new("status", "success")]);
 
     Ok((StatusCode::CREATED, Json(item)))
 }

@@ -1,6 +1,10 @@
+use sqlx::ConnectOptions; // Required for the .log_statements() methods
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use std::str::FromStr;
+use std::time::Duration;
+
 // src/main.rs
 use opentelemetry::global;
-use sqlx::postgres::PgPoolOptions;
 use tracing::{error, info};
 
 mod config;
@@ -13,6 +17,7 @@ pub mod error;
 
 use middleware::RouterExt;
 
+use crate::state::AppMetrics;
 use crate::{config::AppConfig, state::AppState};
 
 #[tokio::main]
@@ -35,24 +40,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let meter = global::meter("axum-test");
-    let items_created_counter = meter
-        .u64_counter("items.created")
-        .with_description("Total number of items successfully created")
-        .build();
-
-    let http_requests_total = meter
-        .u64_counter("http.requests.total")
-        .with_description("Total number of HTTP requests")
-        .build();
-
-    let http_request_duration_seconds = meter
-        .f64_histogram("http.request.duration.seconds")
-        .with_description("HTTP request duration in seconds")
-        .build();
+    let metrics = AppMetrics::new(&meter);
+    let db_options = PgConnectOptions::from_str(&config.db_url)?
+        // Push normal queries down to DEBUG (blocked by your EnvFilter)
+        .log_statements(tracing::log::LevelFilter::Debug)
+        // Escalate queries taking >1s to WARN (allowed by your EnvFilter)
+        .log_slow_statements(tracing::log::LevelFilter::Warn, Duration::from_secs(1));
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&config.db_url)
+        .connect_with(db_options)
         .await?;
 
     sqlx::migrate!("./migrations")
@@ -61,12 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .inspect(|_| info!("Database migrations executed successfully"))
         .inspect_err(|e| error!(error = %e, "Database migration failed"))?;
 
-    let state = AppState {
-        db: pool,
-        items_created_counter,
-        http_requests_total,
-        http_request_duration_seconds,
-    };
+    let state = AppState { db: pool, metrics };
 
     let app = routes::create_router(config.is_prod)
         // Wrap all routes with our metrics tracker BEFORE providing the state
