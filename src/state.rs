@@ -1,18 +1,13 @@
-use crate::metrics::AppMetrics;
 use axum::extract::FromRef;
+use opentelemetry::metrics::{Counter, Histogram};
 use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
-    pub metrics: AppMetrics,
-}
-
-// Allows `State<AppMetrics>` in middleware/handlers
-impl FromRef<AppState> for AppMetrics {
-    fn from_ref(state: &AppState) -> Self {
-        state.metrics.clone()
-    }
+    pub items_created_counter: Counter<u64>,
+    pub http_requests_total: Counter<u64>,
+    pub http_request_duration_seconds: Histogram<f64>,
 }
 
 // Allows `State<PgPool>` in handlers

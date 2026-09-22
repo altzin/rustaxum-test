@@ -1,17 +1,31 @@
 use axum::Router;
 use axum::http::StatusCode;
-use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
+use axum::{
+    extract::{MatchedPath, Request, State},
+    middleware::Next,
+    response::Response,
+};
+use opentelemetry::KeyValue;
 use std::time::Duration;
-use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer};
+use std::time::Instant;
+use tower_http::trace::TraceLayer;
+use tower_http::{
+    cors::CorsLayer,
+    limit::RequestBodyLimitLayer,
+    timeout::TimeoutLayer, // <-- Use the standard TraceLayer
+};
+
+// Assuming you have an AppState struct that holds your metrics
+use crate::AppState;
 
 pub trait RouterExt {
     fn with_base_middleware(self) -> Self;
 }
 
-impl RouterExt for Router {
+impl RouterExt for Router<AppState> {
+    // <-- Add State generic if chaining stateful middleware
     fn with_base_middleware(self) -> Self {
-        self.layer(OtelInResponseLayer)
-            .layer(OtelAxumLayer::default())
+        self.layer(TraceLayer::new_for_http()) // <-- Replaces OtelAxumLayer
             .layer(CorsLayer::permissive())
             .layer(RequestBodyLimitLayer::new(1024 * 1024))
             .layer(TimeoutLayer::with_status_code(
@@ -21,31 +35,17 @@ impl RouterExt for Router {
     }
 }
 
-use crate::metrics::AppMetrics;
-use axum::{
-    extract::{MatchedPath, Request, State},
-    middleware::Next,
-    response::Response,
-};
-use opentelemetry::KeyValue;
-use std::time::Instant;
-
-pub async fn track_metrics(
-    State(metrics): State<AppMetrics>,
-    req: Request,
-    next: Next,
-) -> Response {
+// Fix the State extractor by giving it your AppState type
+pub async fn track_metrics(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let start = Instant::now();
     let method = req.method().to_string();
 
-    // Extract the matched route template (e.g., "/users/:id") or fallback to the raw path
     let path = req
         .extensions()
         .get::<MatchedPath>()
         .map(|mp| mp.as_str().to_owned())
         .unwrap_or_else(|| req.uri().path().to_owned());
 
-    // Execute the actual route handler
     let response = next.run(req).await;
 
     let latency = start.elapsed().as_secs_f64();
@@ -57,11 +57,9 @@ pub async fn track_metrics(
         KeyValue::new("http.status_code", status),
     ];
 
-    // Record to OpenTelemetry
-    metrics.http_requests_total.add(1, &labels);
-    metrics
-        .http_request_duration_seconds
-        .record(latency, &labels);
+    // Access metrics through your state
+    state.http_requests_total.add(1, &labels);
+    state.http_request_duration_seconds.record(latency, &labels);
 
     response
 }

@@ -2,6 +2,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::{Instrument, info_span}; // Bring Instrument trait into scope
+use utoipa::{IntoParams,ToSchema};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -11,17 +12,17 @@ pub struct CreateItem {
     pub name: String,
     pub description: Option<String>,
 }
-
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)] // <-- Add ToSchema here
 pub struct Item {
-    pub id: Uuid,
+    pub id: uuid::Uuid,
     pub name: String,
     pub description: Option<String>,
 }
 
 use axum::extract::Query;
 
-#[derive(Deserialize)]
+#[derive(Deserialize,IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct Pagination {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -36,6 +37,13 @@ pub async fn create_item(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateItem>,
 ) -> Result<(StatusCode, Json<Item>), AppError> {
+
+    // Add this test log
+    tracing::info!(
+        name = %payload.name, 
+        "Attempting to insert new item into database, test message"
+    );
+
     let item = sqlx::query_as!(
         Item,
         r#"
@@ -43,7 +51,7 @@ pub async fn create_item(
         VALUES ($1, $2, $3)
         RETURNING id, name, description
         "#,
-        Uuid::new_v4(),
+            Uuid::new_v4(),
         payload.name,
         payload.description
     )
@@ -54,6 +62,17 @@ pub async fn create_item(
     Ok((StatusCode::CREATED, Json(item)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/items",
+    params(
+        Pagination // <-- This automatically wires up limit and offset in Swagger
+    ),
+    responses(
+        (status = 200, description = "List of items successfully retrieved", body = [Item])
+    ),
+    tag = "Items"
+)]
 #[tracing::instrument(
     name = "http.get.list_items",
     skip(pool, pagination),

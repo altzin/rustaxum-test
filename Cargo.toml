@@ -7,9 +7,8 @@ edition = "2024"
 [dependencies]
 axum = "0.8"
 tokio = { version = "1", features = ["full", "rt-multi-thread"] }
-axum-tracing-opentelemetry = "0.25.0"
 opentelemetry = "=0.32.0"
-opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry_sdk = { version = "0.32", features = ["logs", "rt-tokio"] }
 opentelemetry-otlp = { version = "0.32", features = ["http-proto", "reqwest-blocking-client"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -19,10 +18,12 @@ dotenvy = "0.15.7"
 tower-http = {version = "0.7.1", features = [
 	"cors",
 	"timeout",
+	"trace",
 	"limit"
 ]}
-utoipa = { version = "5.5.0", features = ["axum_extras"] }
+utoipa = { version = "5.5.0", features = ["axum_extras","uuid"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 sqlx = {version="0.9.0", features = ["runtime-tokio","postgres","uuid","macros"]}
 uuid = {version="1.26.1", features = ["v4","serde"]}
 serde = {version="1.0.229",features = ["derive"]}
+opentelemetry-appender-tracing = "0.32.0"

@@ -1,5 +1,5 @@
 // src/main.rs
-use axum::Router;
+use opentelemetry::global;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{error, info};
 
@@ -13,7 +13,7 @@ pub mod error;
 
 use middleware::RouterExt;
 
-use crate::{config::AppConfig, state::AppState, telemetry::metrics};
+use crate::{config::AppConfig, state::AppState};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,10 +21,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AppConfig::from_env();
 
-    let (tracer_provider, meter_provider) =
-        telemetry::init_observability(config.otlp.as_ref(), &config.service_name, config.is_prod)?;
-
-    let app_metrics = metrics::AppMetrics::new();
+    let telemetry_guards =
+        telemetry::init_telemetry(&config.service_name, config.is_prod, config.otlp.as_ref());
 
     tracing::info!(
         "Starting service '{}' in {} mode",
@@ -35,6 +33,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "development"
         }
     );
+
+    let meter = global::meter("axum-test");
+    let items_created_counter = meter
+        .u64_counter("items.created")
+        .with_description("Total number of items successfully created")
+        .build();
+
+    let http_requests_total = meter
+        .u64_counter("http.requests.total")
+        .with_description("Total number of HTTP requests")
+        .build();
+
+    let http_request_duration_seconds = meter
+        .f64_histogram("http.request.duration.seconds")
+        .with_description("HTTP request duration in seconds")
+        .build();
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -49,19 +63,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState {
         db: pool,
-        metrics: app_metrics,
+        items_created_counter,
+        http_requests_total,
+        http_request_duration_seconds,
     };
 
-    let app = Router::new()
-        .merge(routes::create_router(config.is_prod))
-        // Attach the state to the router BEFORE adding the middleware
-        .with_state(state.clone())
-        // Wrap all routes with our metrics tracker
+    let app = routes::create_router(config.is_prod)
+        // Wrap all routes with our metrics tracker BEFORE providing the state
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             middleware::track_metrics,
         ))
-        .with_base_middleware();
+        .with_base_middleware()
+        // Provide the state last so it satisfies the Router<AppState> requirement
+        .with_state(state);
 
     // 5. Server with graceful shutdown
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
@@ -71,8 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    let _ = tracer_provider.shutdown();
-    let _ = meter_provider.shutdown();
+    telemetry_guards.shutdown();
 
     Ok(())
 }
