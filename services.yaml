@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpass
+      POSTGRES_DB: devdb
+    ports:
+      - "5432:5432"
+    volumes:
+      # The :Z flag is critical for Podman on Fedora Atomic to handle SELinux permissions
+      - pgdata:/var/lib/postgresql/data:Z
+
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    environment:
+      ZO_ROOT_USER_EMAIL: root@example.com
+      ZO_ROOT_USER_PASSWORD: pwdX#123
+      # Local mode runs an embedded SQLite meta-store so you don't need to provision a separate DB for OpenObserve
+      ZO_LOCAL_MODE: "true" 
+    ports:
+      - "5080:5080" # Default UI and ingestion port
+    volumes:
+      - oodata:/data:Z
+  services:
+    nats:
+      image: docker.io/nats:latest
+      container_name: nats-jetstream
+      command: ["-js", "-sd", "/data"]
+      ports:
+        - "4222:4222"
+        - "8222:8222"
+      volumes:
+        - nats-data:/data
+
+volumes:
+  pgdata:
+  nats-data:
+  oodata:
