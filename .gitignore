@@ -1,0 +1,15 @@
+# --- Root level: Global Secrets & Environment ---
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.cert
+
+# --- OS & Editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
