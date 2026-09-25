@@ -59,3 +59,7 @@ We rely on NATS JetStream's native features and idempotent worker logic rather t
 
 - The system will be consumed by a custom Firefox (or Brave) extension.
 - The BFF URL is not hardcoded; it is configurable within the addon's settings.
+
+## TODOs
+
+- Setup opentofu and add nats inits to opentofu
