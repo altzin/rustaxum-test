@@ -13,3 +13,18 @@ secrets/
 .vscode/
 *.swp
 *.swo
+
+
+# OpenTofu / Terraform
+**/.terraform/
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Rust / Checkpoint Kenny
+checkpoint-kenny/target/
+**/*.rs.bk
+
+# Go / Woodhouse
+woodhouse/woodhouse
