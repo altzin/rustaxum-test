@@ -10,7 +10,7 @@ services:
     volumes:
       - nats-data:/data
     env_file: 
-     - .env
+     - ../../.env
 
 volumes: 
   nats-data:
