@@ -2,7 +2,7 @@
 services:
   nats:
     image: docker.io/nats:latest
-    container_name: nats-jetstream
+    container_name: nats
     command: ["-js", "-sd", "/data"]
     ports:
       - "4222:4222"

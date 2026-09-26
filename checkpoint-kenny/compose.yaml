@@ -7,6 +7,7 @@ services:
     depends_on:
       - postgres
       - nats
+    restart: unless-stopped
     
     # Security Sandboxing
     read_only: true
