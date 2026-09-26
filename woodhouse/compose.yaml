@@ -1,0 +1,15 @@
+services:
+  woodhouse:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    env_file: ../.env
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Note: Chrome requires a tiny bit of shared memory for rendering, 
+    # so we map an in-memory tmpfs to prevent disk writes.
+    tmpfs:
+      - /tmp

@@ -1,0 +1,16 @@
+
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    environment:
+      ZO_ROOT_USER_EMAIL: {OPEN_EMAIL}
+      ZO_ROOT_USER_PASSWORD: {OPEN_PASS}
+      ZO_LOCAL_MODE: "true" 
+    ports:
+      - "5080:5080" 
+    volumes:
+      - oodata:/data:Z
+      env_file: .env
+
+volumes:
+  oodata:

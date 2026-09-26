@@ -1,39 +1,49 @@
-# ---------------------------------------
-# Stage 1: Build the Go binary
-# ---------------------------------------
-FROM docker.io/golang:1.27-alpine AS builder
 
+
+# ---------------------------------------------------
+# Stage 1: The Go Builder
+# ---------------------------------------------------
+FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Cache dependencies first (speeds up rebuilds)
+# Cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source and compile statically
+# Copy the rest of the code
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /go-worker .
 
-# ---------------------------------------
-# Stage 2: Minimal Runtime Environment
-# ---------------------------------------
-FROM docker.io/alpine:latest
+# Build a statically linked, stripped Go binary (removes C dependencies)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o woodhouse .
 
-# Install Chromium for the headless browser, and CA certs for HTTPS downloads
-RUN apk add --no-cache chromium ca-certificates tzdata font-noto
+# ---------------------------------------------------
+# Stage 2: The Minimal Chromedp Runtime
+# ---------------------------------------------------
+FROM alpine:latest AS runtime
 
-WORKDIR /app
+# Install Chromium and the exact font/rendering libraries it needs to survive
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    tzdata \
+    font-noto
 
-# Copy the compiled binary from the builder stage
-COPY --from=builder /go-worker /app/go-worker
+# Create a dedicated, non-root user (Chrome requires this)
+RUN adduser -D -g '' appuser
 
-# Create a non-root user
-RUN addgroup -S workergroup && adduser -S worker -G workergroup
-RUN chown -R worker:workergroup /app
+# Copy ONLY the compiled binary from the builder
+COPY --from=builder /app/woodhouse /usr/local/bin/woodhouse
 
-# Switch to the non-root user
-USER worker
+# Ensure chromedp knows where the Alpine chromium binary lives
+ENV CHROME_BIN=/usr/bin/chromium-browser \
+    CHROME_PATH=/usr/lib/chromium/
 
-# Tell chromedp where Alpine installed the browser
-ENV CHROME_BIN=/usr/bin/chromium-browser
+# Lock down execution to the non-root user
+USER appuser
 
-CMD ["/app/go-worker"]
+# Run the app
+CMD ["woodhouse"]

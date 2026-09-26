@@ -1,0 +1,18 @@
+services:
+  checkpoint-kenny:
+    build: 
+      context: .
+    env_file: ../.env
+    depends_on:
+      - postgres
+      - nats
+    
+    # Security Sandboxing
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Rust apps occasionally need to write temporary files (e.g., during network requests)
+    tmpfs:
+      - /tmp

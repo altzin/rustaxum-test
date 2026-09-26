@@ -1,0 +1,4 @@
+include:
+  - infra/postgres/compose.yaml
+  - infra/openobserve/compose.yaml
+  - infra/nats/compose.yaml
