@@ -9,7 +9,8 @@ services:
       - "8222:8222"
     volumes:
       - nats-data:/data
-    env_file: .env
+    env_file: 
+     - .env
 
 volumes: 
   nats-data:
