@@ -2,7 +2,7 @@
 # Stage 1: The Builder (Heavy)
 # ---------------------------------------------------
 # FROM rust:1.80-slim-bookworm AS builder
-FROM rust:1.86-slim-bookworm AS builder<
+FROM rust:1.86-slim-bookworm AS builder
 WORKDIR /app
 
 # Copy the source code
