@@ -28,7 +28,7 @@ RUN addgroup --system --gid 1000 appgroup && \
     adduser --system --uid 1000 --gid 1000 --no-create-home appuser
 
 # Copy ONLY the compiled binary from the builder stage
-COPY --from=builder /app/target/release/app_name /usr/local/bin/app_name
+COPY --from=builder /app/target/release/checkpoint-kenny /usr/local/bin/checkpoint-kenny
 
 # Lock down execution to the non-root user
 USER appuser
