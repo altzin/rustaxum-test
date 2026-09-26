@@ -5,6 +5,9 @@
 FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y curl unzip && rm -rf /var/lib/apt/lists/*
+
+
 # Copy the source code
 COPY . .
 
