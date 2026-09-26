@@ -34,4 +34,4 @@ COPY --from=builder /app/target/release/app_name /usr/local/bin/app_name
 USER appuser
 
 # The app boots and waits for Docker Compose to inject environment variables
-CMD ["app_name"]
+CMD ["checkpoint-kenny"]
