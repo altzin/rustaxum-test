@@ -3,7 +3,7 @@
 # ---------------------------------------------------
 # Stage 1: The Go Builder
 # ---------------------------------------------------
-FROM golang:1.22-alpine AS builder
+FROM golang:1.27-alpine AS builder
 WORKDIR /app
 
 # Cache dependencies
